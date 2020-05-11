@@ -1,5 +1,8 @@
+import logging
 import math
+import matplotlib.pyplot as plt
 import networkx as nx
+from pathlib import Path
 import random
 import sys
 
@@ -11,6 +14,7 @@ class RandomGraph:
       exit(1)
     self._compute_average_path_length()
     self._compute_clustering_coefficient()
+    self._compute_average_degree()
     
   def _create_random_graph(self, n, p):
     self._random_graph = nx.Graph()
@@ -19,8 +23,6 @@ class RandomGraph:
       for j in self._random_graph.nodes:
         if i != j and random.random() < p:
           self._random_graph.add_edge(i, j)
-
-    
 
   def _get_sample_paths(self):
     node_count = len(self._random_graph)
@@ -70,9 +72,15 @@ class RandomGraph:
   def _compute_clustering_coefficient(self):
     self._compute_node_clustering_coefficients()
     clustering_coefficients = []
-    for _, coefficient in list(self._random_graph.nodes.data("clustering_coefficient")):
+    for (_, coefficient) in list(self._random_graph.nodes.data("clustering_coefficient")):
       clustering_coefficients.append(coefficient)
     self.clustering_coefficient = sum(clustering_coefficients) / len(clustering_coefficients)
+
+  def _compute_average_degree(self):
+    degrees = []
+    for (_, degree) in list(self._random_graph.degree):
+      degrees.append(degree)
+    self.average_degree = sum(degrees) / len(degrees)
 
   def get_average_path_length(self):
     return nx.average_shortest_path_length(self._random_graph)
@@ -81,8 +89,29 @@ class RandomGraph:
     return nx.average_clustering(self._random_graph)
 
 if __name__ == "__main__":
-  graph = RandomGraph(150, 0.3)
-  print(f"Computed average path length: {graph.average_path_length}")
-  print(f"Computed clustering coefficient: {graph.clustering_coefficient}")
-  print(f"Library clustering coefficient: {graph.get_clustering_coefficient()}")
-  print(f"Library average path length: {graph.get_average_path_length()}")
+  directory = sys.argv[1]
+  Path(f"./{directory}").mkdir(parents=True, exist_ok=True)
+  logging.basicConfig(
+    filename=f"./{directory}/gg.log",
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+  )
+  n = 32
+  p = 0.3
+  path_lengths = []
+  nodes = []
+  for c in range(0, 20):
+    logging.info(f"Creating graph with n={n} and p={p}")
+    graph = RandomGraph(n, p)
+    logging.info(f"Average degree: {graph.average_degree}")
+    logging.info(f"Average path length: {graph.average_path_length}")
+    logging.info(f"Clustering coefficient: {graph.clustering_coefficient}")
+    nodes.append(n)
+    path_lengths.append(graph.average_path_length)
+    p = p * (n-1) / (n*2 - 1)
+    n = n*2
+  plt.plot(nodes, path_lengths)
+  plt.xlabel("Number of nodes")
+  plt.ylabel("Average path length")
+  plt.savefig(f"./{directory}/path_lengths.png")
