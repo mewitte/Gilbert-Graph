@@ -9,12 +9,30 @@ import sys
 class RandomGraph:
   def __init__(self, n, p):
     self._create_random_graph(n, p)
-    if not nx.is_connected(self._random_graph):
-      sys.stderr.write("Graph is not connected!")
-      exit(1)
-    self._compute_average_path_length()
-    self._compute_clustering_coefficient()
-    self._compute_average_degree()
+    while not nx.is_connected(self._random_graph):
+      logging.error("Graph is not connected! Creating new graph")
+      self._create_random_graph(n, p)
+    self._average_path_length = False
+    self._clustering_coefficient = False
+    self._average_degree = False
+
+  @property
+  def average_path_length(self):
+    if not self._average_path_length:
+      self._compute_average_path_length()
+    return self._average_path_length
+
+  @property
+  def clustering_coefficient(self):
+    if not self._clustering_coefficient:
+      self._compute_clustering_coefficient()
+    return self._clustering_coefficient
+
+  @property
+  def average_degree(self):
+    if not self._average_degree:
+      self._compute_average_degree
+    return self._average_degree
     
   def _create_random_graph(self, n, p):
     self._random_graph = nx.Graph()
@@ -53,7 +71,7 @@ class RandomGraph:
     distances = []
     for (first_node, second_node) in sample_paths:
       distances.append(nx.shortest_path_length(self._random_graph, first_node, second_node))
-    self.average_path_length = sum(distances) / len(distances)
+    self._average_path_length = sum(distances) / len(distances)
 
   def _compute_node_clustering_coefficients(self):
     for node in list(self._random_graph.nodes):
@@ -74,13 +92,13 @@ class RandomGraph:
     clustering_coefficients = []
     for (_, coefficient) in list(self._random_graph.nodes.data("clustering_coefficient")):
       clustering_coefficients.append(coefficient)
-    self.clustering_coefficient = sum(clustering_coefficients) / len(clustering_coefficients)
+    self._clustering_coefficient = sum(clustering_coefficients) / len(clustering_coefficients)
 
   def _compute_average_degree(self):
     degrees = []
     for (_, degree) in list(self._random_graph.degree):
       degrees.append(degree)
-    self.average_degree = sum(degrees) / len(degrees)
+    self._average_degree = sum(degrees) / len(degrees)
 
   def get_average_path_length(self):
     return nx.average_shortest_path_length(self._random_graph)
@@ -97,21 +115,61 @@ if __name__ == "__main__":
     format="%(asctime)s %(levelname)-8s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
   )
+
+  # experiment for dependency between growth of node number and average path length
+  # n is starting number of nodes, p is starting probability for an edge between nodes
+  # c refers to different values for n
+  # between each iteration, the value of n is multiplied by 2, p is adapted accordingly
+  # getting the cluster coefficient for large values for n takes a long time, it might be best to comment that out for this experiment
   n = 32
   p = 0.3
   path_lengths = []
   nodes = []
-  for c in range(0, 20):
+  for c in range(0, 10):
     logging.info(f"Creating graph with n={n} and p={p}")
     graph = RandomGraph(n, p)
-    logging.info(f"Average degree: {graph.average_degree}")
     logging.info(f"Average path length: {graph.average_path_length}")
-    logging.info(f"Clustering coefficient: {graph.clustering_coefficient}")
     nodes.append(n)
     path_lengths.append(graph.average_path_length)
-    p = p * (n-1) / (n*2 - 1)
-    n = n*2
+    p = p * (n - 1) / (n * 2 - 1)
+    n = n * 2
   plt.plot(nodes, path_lengths)
   plt.xlabel("Number of nodes")
   plt.ylabel("Average path length")
   plt.savefig(f"./{directory}/path_lengths.png")
+
+  # experiment for the depenency between n and the clustering coefficient
+  nodes = [32, 64, 128, 256, 512, 1024, 2048, 4096]
+  p = 0.3
+  clustering_coefficients = []
+  for n in nodes:
+    average = 0
+    for _ in range(0, 1):
+      logging.info(f"Creating graph with n={n} and p={p}")
+      graph = RandomGraph(n, p)
+      logging.info(f"Clustering coefficient: {graph.clustering_coefficient}")
+      average += graph.clustering_coefficient
+    clustering_coefficients.append(graph.clustering_coefficient / 10)
+  plt.plot(nodes, clustering_coefficients)
+  plt.xlabel("Number of nodes")
+  plt.ylabel("Clustering coefficient")
+  plt.savefig(f"./{directory}/clustering_coefficients_n.png")
+
+  # experiment for the dependencz between p and the clustering coefficient
+  n = 512
+  p = 0.05
+  probabilities = []
+  clustering_coefficients = []
+  while p <= 0.95 :
+    average = 0
+    logging.info(f"Creating graph with n={n} and p={p}")
+    graph = RandomGraph(n, p)
+    logging.info(f"Clustering coefficient: {graph.clustering_coefficient}")
+    average += graph.clustering_coefficient
+    probabilities.append(p)
+    clustering_coefficients.append(graph.clustering_coefficient)
+    p = round(p + 0.05, 2)
+  plt.plot(probabilities, clustering_coefficients)
+  plt.xlabel("Probability")
+  plt.ylabel("Clustering coefficient")
+  plt.savefig(f"./{directory}/clustering_coefficients_p.png")
